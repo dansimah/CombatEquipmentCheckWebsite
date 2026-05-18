@@ -14,7 +14,10 @@ function createPrismaClient() {
 
   const pool = new pg.Pool({
     connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl:
+      process.env.DATABASE_SSL === 'true'
+        ? { rejectUnauthorized: false }
+        : undefined,
     max: 5,
   });
 
@@ -22,8 +25,21 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+function getPrismaClient(): InstanceType<typeof PrismaClient> {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
 }
+
+/** Lazy client so `next build` does not require DATABASE_URL at import time. */
+export const prisma = new Proxy({} as InstanceType<typeof PrismaClient>, {
+  get(_target, prop) {
+    const client = getPrismaClient();
+    const value = client[prop as keyof typeof client];
+    if (typeof value === 'function') {
+      return (value as (...args: unknown[]) => unknown).bind(client);
+    }
+    return value;
+  },
+});

@@ -140,15 +140,24 @@ export default function AdminInventory() {
     setDrilldownItems([]);
   };
 
-  // Get all types (including those with 0 count for the full standardized list)
-  const allTypesWithCounts = EQUIPMENT_TYPES.map((type) => {
-    const found = summaryData.find((s) => s.type === type);
-    return {
-      type,
-      total: found?.total || 0,
-      verified: found?.verified || 0,
-    };
-  });
+  const allTypesWithCounts = (() => {
+    const seen = new Set<string>();
+    const result: SummaryItem[] = [];
+
+    for (const type of EQUIPMENT_TYPES) {
+      seen.add(type);
+      const found = summaryData.find((s) => s.type === type);
+      result.push({ type, total: found?.total || 0, verified: found?.verified || 0 });
+    }
+
+    for (const item of summaryData) {
+      if (!seen.has(item.type)) {
+        result.push(item);
+      }
+    }
+
+    return result;
+  })();
 
   // ---- DRILL-DOWN VIEW ----
   if (drilldownType) {

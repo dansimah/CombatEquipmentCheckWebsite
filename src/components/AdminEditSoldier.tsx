@@ -260,8 +260,11 @@ export default function AdminEditSoldier({
                 {isEditing ? (
                   <>
                     <div className="equipment-list-item__fields">
-                      <select
-                        className="form-select"
+                      <input
+                        type="text"
+                        className="form-input"
+                        list="equipment-types-list"
+                        placeholder="— בחר או הקלד פריט —"
                         value={isEditing.type}
                         onChange={(e) =>
                           setEditingEquipment((prev) => ({
@@ -269,14 +272,7 @@ export default function AdminEditSoldier({
                             [item.id]: { ...prev[item.id], type: e.target.value },
                           }))
                         }
-                      >
-                        <option value="">— בחר פריט —</option>
-                        {allTypes.map((type) => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                      </select>
+                      />
                       <input
                         type="text"
                         className="form-input"
@@ -338,18 +334,14 @@ export default function AdminEditSoldier({
         <div className="add-equipment-row">
           <h3 className="add-equipment-row__title">הוסף ציוד חדש</h3>
           <div className="equipment-row__fields">
-            <select
-              className="form-select"
+            <input
+              type="text"
+              className="form-input"
+              list="equipment-types-list"
+              placeholder="— בחר או הקלד פריט —"
               value={newEquipment.type}
               onChange={(e) => setNewEquipment((prev) => ({ ...prev, type: e.target.value }))}
-            >
-              <option value="">— בחר פריט —</option>
-              {allTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+            />
             <input
               type="text"
               className="form-input"
@@ -368,6 +360,12 @@ export default function AdminEditSoldier({
             {addingEquipment ? <><div className="spinner" /> מוסיף...</> : '➕ הוסף'}
           </button>
         </div>
+
+        <datalist id="equipment-types-list">
+          {allTypes.map((type) => (
+            <option key={type} value={type} />
+          ))}
+        </datalist>
       </div>
     </div>
   );

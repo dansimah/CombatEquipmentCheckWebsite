@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getToday } from '@/lib/utils';
-import { EQUIPMENT_TYPES } from '@/lib/equipment-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,20 +35,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Initialize counts for standardized equipment
     const summary: Record<string, { total: number; verified: number }> = {};
-    for (const type of EQUIPMENT_TYPES) {
-      summary[type] = { total: 0, verified: 0 };
-    }
 
-    // Tally up the totals and verified counts
     for (const soldier of soldiers) {
       const lastVerification = soldier.verifications[0] || null;
       const verifiedItems = lastVerification
         ? ((lastVerification.items as unknown as VerificationItemData[]) || [])
         : [];
 
-      // Create a map of verified serial numbers for quick lookup
       const verifiedMap = new Map<string, boolean>();
       for (const vi of verifiedItems) {
         if (vi.verified) {
@@ -58,14 +51,13 @@ export async function GET(request: NextRequest) {
       }
 
       for (const eq of soldier.equipment) {
-        // If it's a known type or we want to track non-standard types too:
-        // We will only track what's in the standardized EQUIPMENT_TYPES array
-        if (summary[eq.type]) {
-          summary[eq.type].total += 1;
-          
-          if (verifiedMap.get(`${eq.type}:${eq.serialNumber}`)) {
-            summary[eq.type].verified += 1;
-          }
+        if (!summary[eq.type]) {
+          summary[eq.type] = { total: 0, verified: 0 };
+        }
+        summary[eq.type].total += 1;
+
+        if (verifiedMap.get(`${eq.type}:${eq.serialNumber}`)) {
+          summary[eq.type].verified += 1;
         }
       }
     }

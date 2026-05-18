@@ -177,20 +177,16 @@ export default function AdminAddSoldier() {
               {equipment.map((row, index) => (
                 <div key={index} className="equipment-row">
                   <div className="equipment-row__fields">
-                    <select
-                      className="form-select"
+                    <input
+                      type="text"
+                      className="form-input"
+                      list="equipment-types-list"
+                      placeholder="— בחר או הקלד פריט —"
                       value={row.type}
                       onChange={(e) =>
                         updateEquipmentRow(index, 'type', e.target.value)
                       }
-                    >
-                      <option value="">— בחר פריט —</option>
-                      {allTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <input
                       type="text"
                       className="form-input"
@@ -216,6 +212,12 @@ export default function AdminAddSoldier() {
               ))}
             </div>
           </div>
+
+          <datalist id="equipment-types-list">
+            {allTypes.map((type) => (
+              <option key={type} value={type} />
+            ))}
+          </datalist>
 
           {/* Submit */}
           <button

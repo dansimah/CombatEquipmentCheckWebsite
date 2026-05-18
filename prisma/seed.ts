@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { seedFromCsv } from './seed-csv';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -24,18 +25,20 @@ function normalizeSerial(val: unknown): string | null {
   return str;
 }
 
+function resolveSeedCsvPath(): string | null {
+  const candidates = [
+    process.env.SEED_CSV,
+    path.join(process.cwd(), 'data', 'equipment-signatures-april-26.csv'),
+    path.join(process.cwd(), 'data', 'equipment.csv'),
+  ].filter((p): p is string => Boolean(p));
 
-async function main() {
-  console.log('🔄 Starting seed process...');
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
-  // Clear existing data
-  console.log('🗑️  Clearing existing data...');
-  await prisma.verification.deleteMany();
-  await prisma.equipment.deleteMany();
-  await prisma.soldier.deleteMany();
-  await prisma.team.deleteMany();
-
-  // Read the Excel file
+async function seedFromExcel() {
   const xlsxPath = path.join(process.cwd(), 'Equpment_Data_Merged.xlsx');
   if (!fs.existsSync(xlsxPath)) {
     console.error('❌ Could not find Equpment_Data_Merged.xlsx in project root');
@@ -64,27 +67,23 @@ async function main() {
       continue;
     }
 
-    // Create team
     const team = await prisma.team.create({
       data: { name: sheetName },
     });
     console.log(`  ✅ Created team: ${sheetName}`);
 
-    // Get equipment columns (all columns except metadata)
     const allColumns = Object.keys(rows[0]);
-    const equipmentColumns = allColumns.filter(col => !META_COLUMNS.includes(col));
+    const equipmentColumns = allColumns.filter((col) => !META_COLUMNS.includes(col));
 
     for (const row of rows) {
       const soldierName = row['שם מלא'] as string | null;
 
-      // Skip empty rows and section labels
       if (!soldierName || soldierName.trim() === '') continue;
       if (SECTION_LABELS.includes(soldierName.trim())) {
         console.log(`  ⏭️  Skipping section label: ${soldierName}`);
         continue;
       }
 
-      // Create soldier
       const soldier = await prisma.soldier.create({
         data: {
           name: soldierName.trim(),
@@ -93,7 +92,6 @@ async function main() {
       });
       totalSoldiers++;
 
-      // Create equipment entries (only for items with actual serial numbers)
       const equipmentData: { type: string; serialNumber: string; soldierId: string }[] = [];
       for (const col of equipmentColumns) {
         const serial = normalizeSerial(row[col]);
@@ -115,17 +113,47 @@ async function main() {
     }
   }
 
-  // Seed default config
+  return {
+    teams: workbook.SheetNames.length - SKIP_SHEETS.length,
+    soldiers: totalSoldiers,
+    equipment: totalEquipment,
+  };
+}
+
+async function main() {
+  console.log('🔄 Starting seed process...');
+
+  console.log('🗑️  Clearing existing data...');
+  await prisma.verification.deleteMany();
+  await prisma.equipment.deleteMany();
+  await prisma.soldier.deleteMany();
+  await prisma.team.deleteMany();
+
+  const csvPath = resolveSeedCsvPath();
+  let stats: { teams: number; soldiers: number; equipment: number };
+
+  if (csvPath) {
+    console.log(`📂 Using CSV: ${csvPath}`);
+    stats = await seedFromCsv(prisma, csvPath);
+    console.log(`   Unique soldiers (by team): ${stats.soldiers}`);
+  } else {
+    console.log('📂 No CSV found — falling back to Excel');
+    stats = await seedFromExcel();
+  }
+
   await prisma.appConfig.upsert({
     where: { key: 'VERIFICATION_INTERVAL_HOURS' },
     update: { value: process.env.VERIFICATION_INTERVAL_HOURS || '24' },
-    create: { key: 'VERIFICATION_INTERVAL_HOURS', value: process.env.VERIFICATION_INTERVAL_HOURS || '24' },
+    create: {
+      key: 'VERIFICATION_INTERVAL_HOURS',
+      value: process.env.VERIFICATION_INTERVAL_HOURS || '24',
+    },
   });
 
   console.log(`\n🎉 Seed complete!`);
-  console.log(`   Teams: ${workbook.SheetNames.length - SKIP_SHEETS.length}`);
-  console.log(`   Soldiers: ${totalSoldiers}`);
-  console.log(`   Equipment items: ${totalEquipment}`);
+  console.log(`   Teams: ${stats.teams}`);
+  console.log(`   Soldiers: ${stats.soldiers}`);
+  console.log(`   Equipment items: ${stats.equipment}`);
 }
 
 main()
