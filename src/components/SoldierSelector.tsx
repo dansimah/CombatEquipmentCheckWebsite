@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 interface Soldier {
   id: string;
   name: string;
+  verifiedToday?: boolean;
 }
 
 interface SoldierSelectorProps {
@@ -74,7 +75,7 @@ export default function SoldierSelector({ team, onSelect }: SoldierSelectorProps
           </option>
           {soldiers.map((soldier) => (
             <option key={soldier.id} value={soldier.id}>
-              {soldier.name}
+              {soldier.verifiedToday ? '✔ ' : ''}{soldier.name}
             </option>
           ))}
         </select>
