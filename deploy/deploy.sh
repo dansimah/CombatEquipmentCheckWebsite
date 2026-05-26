@@ -40,7 +40,7 @@ cp -a .next/standalone/. "${STAGE}/"
 [[ -d public ]] && cp -a public "${STAGE}/public"
 mkdir -p "${STAGE}/.next"
 cp -a .next/static "${STAGE}/.next/static"
-cp -r prisma package.json package-lock.json prisma.config.ts "${STAGE}/"
+cp -r prisma package.json package-lock.json prisma.config.ts scripts src "${STAGE}/"
 [[ -d data ]] && cp -r data "${STAGE}/"
 
 [[ -f "${APP_DIR}/.env" ]] && cp "${APP_DIR}/.env" "${STAGE}/.env"
@@ -64,7 +64,14 @@ if id combatcheck &>/dev/null; then
   chown -R combatcheck:combatcheck "${APP_DIR}"
 fi
 
-echo "==> Restarting service..."
+echo "==> Restarting services..."
 systemctl restart combatcheck
+
+if [[ -f "${REPO_DIR}/deploy/combatcheck-cron.service" ]]; then
+  cp "${REPO_DIR}/deploy/combatcheck-cron.service" /etc/systemd/system/
+  systemctl daemon-reload
+  systemctl enable combatcheck-cron 2>/dev/null || true
+  systemctl restart combatcheck-cron 2>/dev/null || systemctl start combatcheck-cron
+fi
 
 echo "==> Deploy complete."

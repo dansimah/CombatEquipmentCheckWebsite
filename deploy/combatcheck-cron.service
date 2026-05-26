@@ -1,0 +1,18 @@
+[Unit]
+Description=Combat Equipment Check - Cron Worker
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=combatcheck
+Group=combatcheck
+WorkingDirectory=/opt/combatcheck
+EnvironmentFile=/opt/combatcheck/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npx tsx scripts/cron.ts
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

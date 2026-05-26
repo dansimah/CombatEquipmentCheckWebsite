@@ -59,3 +59,13 @@ model AppConfig {
   key   String @unique
   value String
 }
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  trigger   String   // "manual" | "cron"
+  changes   Json
+  summary   String
+
+  @@index([timestamp])
+}

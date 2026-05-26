@@ -40,8 +40,7 @@ export function parseCsvLine(line: string): string[] {
   return fields;
 }
 
-export function readEquipmentCsv(csvPath: string): CsvEquipmentRow[] {
-  const content = fs.readFileSync(csvPath, 'utf-8');
+export function parseEquipmentCsvContent(content: string): CsvEquipmentRow[] {
   const lines = content.split(/\r?\n/);
 
   const headerIndex = lines.findIndex(
@@ -78,6 +77,11 @@ export function readEquipmentCsv(csvPath: string): CsvEquipmentRow[] {
   }
 
   return rows;
+}
+
+export function readEquipmentCsv(csvPath: string): CsvEquipmentRow[] {
+  const content = fs.readFileSync(csvPath, 'utf-8');
+  return parseEquipmentCsvContent(content);
 }
 
 export function normalizeCsvSerial(val: string): string {

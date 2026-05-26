@@ -42,9 +42,14 @@ export default function AdminDashboard() {
   const [teamsList, setTeamsList] = useState<{id: string, name: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
-  const fetchStatus = useCallback(async (selectedDate: string) => {
-    setLoading(true);
+  const fetchStatus = useCallback(async (selectedDate: string, background = false) => {
+    if (!background) setLoading(true);
     setError(null);
     try {
       const statusRes = await fetch(`/api/admin/status?date=${selectedDate}`);
@@ -70,9 +75,9 @@ export default function AdminDashboard() {
         setSummaryData(sumData.summary);
       }
     } catch {
-      setError('שגיאה בטעינת הנתונים');
+      if (!background) setError('שגיאה בטעינת הנתונים');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, [summaryTeam]);
 
@@ -80,13 +85,44 @@ export default function AdminDashboard() {
     fetchStatus(date);
   }, [date, fetchStatus]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds (background — no loading spinner)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchStatus(date);
+      fetchStatus(date, true);
     }, 30000);
     return () => clearInterval(interval);
   }, [date, fetchStatus]);
+
+  const handleSheetsSync = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch('/api/admin/sync', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.reload();
+          return;
+        }
+        throw new Error(body.error || 'סנכרון נכשל');
+      }
+      setSyncMessage({
+        type: 'success',
+        text: body.hasChanges
+          ? `סנכרון הושלם: ${body.summary}`
+          : 'סנכרון הושלם — אין שינויים',
+      });
+      await fetchStatus(date);
+    } catch (err) {
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'שגיאה בסנכרון מ-Sheets',
+      });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 8000);
+    }
+  };
 
   return (
     <>
@@ -116,8 +152,37 @@ export default function AdminDashboard() {
           >
             🔄
           </button>
+          <button
+            className="btn btn--primary btn--small"
+            onClick={handleSheetsSync}
+            disabled={syncing}
+            title="סנכרן מ-Google Sheets"
+          >
+            {syncing ? 'מסנכרן...' : '📥 סנכרן מ-Sheets'}
+          </button>
         </div>
       </div>
+
+      {syncMessage && (
+        <div
+          className="card"
+          style={{
+            marginBottom: 'var(--space-lg)',
+            borderColor:
+              syncMessage.type === 'success' ? 'var(--success)' : 'var(--danger)',
+          }}
+        >
+          <p
+            style={{
+              textAlign: 'center',
+              color:
+                syncMessage.type === 'success' ? 'var(--success)' : 'var(--danger)',
+            }}
+          >
+            {syncMessage.text}
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="loading-state">

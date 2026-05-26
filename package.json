@@ -14,7 +14,8 @@
     "db:studio": "prisma studio",
     "prod:build": "npx prisma generate && npm run build",
     "prod:start": "node .next/standalone/server.js",
-    "db:setup": "npx prisma db push && npx tsx prisma/seed.ts"
+    "db:setup": "npx prisma db push && npx tsx prisma/seed.ts",
+    "cron": "npx tsx scripts/cron.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -25,21 +26,23 @@
     "cookie": "^1.1.1",
     "dotenv": "^17.4.2",
     "next": "16.2.4",
+    "node-cron": "^3.0.3",
     "pg": "^8.20.0",
     "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "tsx": "^4.21.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cookie": "^0.6.0",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
