@@ -679,6 +679,8 @@ body::before {
   padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--border-primary);
   transition: background var(--transition-fast);
+  cursor: pointer;
+  user-select: none;
 }
 
 .soldier-row:last-child {
@@ -1226,8 +1228,8 @@ body::before {
 /* ---- Equipment Summary ---- */
 .equipment-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-md);
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
 }
 
 .equipment-summary-item {
@@ -1238,6 +1240,14 @@ body::before {
   background: var(--bg-input);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.equipment-summary-item:hover {
+  background: var(--bg-card-hover);
+}
 }
 
 .equipment-summary-item__name {
@@ -1461,6 +1471,107 @@ body::before {
   }
 
   .inventory-item__action {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+/* ---- Expand Panel (inline drilldowns in dashboard) ---- */
+.expand-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-top: none;
+  padding: var(--space-sm) var(--space-lg);
+  animation: fadeInUp 0.2s ease;
+}
+
+.expand-panel--soldier {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-bottom: var(--space-xs);
+}
+
+.expand-panel--equip {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-bottom: var(--space-sm);
+}
+
+.expand-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-xs);
+  transition: all var(--transition-fast);
+}
+
+.expand-panel__row:last-child {
+  margin-bottom: 0;
+}
+
+.expand-panel__row--verified {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+}
+
+.expand-panel__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.expand-panel__type {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.expand-panel__serial {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-family: 'Courier New', monospace;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.expand-panel__soldier {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.expand-panel__team {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.expand-panel__action {
+  flex-shrink: 0;
+}
+
+.expand-panel__loading {
+  text-align: center;
+  padding: var(--space-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.expand-panel__empty {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  padding: var(--space-sm) 0;
+}
+
+@media (max-width: 480px) {
+  .expand-panel__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+  }
+
+  .expand-panel__action {
     display: flex;
     justify-content: flex-end;
   }

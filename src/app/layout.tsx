@@ -39,10 +39,10 @@ export default function RootLayout({
           gap: '0.5rem',
           direction: 'ltr'
         }}>
-          <span>© {new Date().getFullYear()} Zvi Marmor</span>
+          <span>© {new Date().getFullYear()} Zvi Marmor/Dan Simah</span>
           <span>|</span>
           <a
-            href="https://github.com/Zvimarmor/CombatEquipmentCheckWebsite.git"
+            href="https://github.com/dansimah/CombatEquipmentCheckWebsite.git"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem' }}

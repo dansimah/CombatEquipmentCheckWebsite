@@ -385,7 +385,6 @@ export default function AdminDashboard() {
                   <div key={item.type}>
                     <div
                       className="equipment-summary-item"
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
                       onClick={() => toggleEquipTypeExpand(item.type)}
                       role="button"
                       tabIndex={0}
@@ -408,42 +407,26 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {expandedEquipType === item.type && (
-                      <div className="expand-panel" style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--surface-alt, #f8f9fa)', borderRadius: '0 0 8px 8px', marginTop: '-4px', marginBottom: 'var(--space-sm)' }}>
+                      <div className="expand-panel expand-panel--equip">
                         {equipDrilldownLoading ? (
-                          <div style={{ textAlign: 'center', padding: 'var(--space-sm)' }}>
+                          <div className="expand-panel__loading">
                             <div className="spinner" style={{ display: 'inline-block' }} /> טוען...
                           </div>
                         ) : equipDrilldownItems.length === 0 ? (
-                          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>לא נמצאו פריטים</p>
+                          <p className="expand-panel__empty">לא נמצאו פריטים</p>
                         ) : (
                           equipDrilldownItems.map((eqItem) => (
-                            <div
-                              key={eqItem.equipmentId}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: 'var(--space-xs) 0',
-                                borderBottom: '1px solid var(--border, #eee)',
-                                fontSize: 'var(--font-size-sm)',
-                              }}
-                            >
-                              <div>
-                                <span style={{ fontWeight: 500 }}>{eqItem.soldierName}</span>
-                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
-                                  {eqItem.teamName}
-                                </span>
-                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
-                                  #{eqItem.serialNumber}
-                                </span>
+                            <div key={eqItem.equipmentId} className={`expand-panel__row ${eqItem.verified ? 'expand-panel__row--verified' : ''}`}>
+                              <div className="expand-panel__info">
+                                <div className="expand-panel__soldier">{eqItem.soldierName} • {eqItem.teamName}</div>
+                                <div className="expand-panel__serial">{eqItem.serialNumber}</div>
                               </div>
-                              <div>
+                              <div className="expand-panel__action">
                                 {eqItem.verified ? (
-                                  <span className="status-badge status-badge--verified" style={{ fontSize: 'var(--font-size-xs)' }}>✅ אומת</span>
+                                  <span className="status-badge status-badge--verified">✅ אומת</span>
                                 ) : (
                                   <button
                                     className="btn btn--primary btn--small"
-                                    style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px' }}
                                     onClick={(e) => { e.stopPropagation(); handleApproveEquipItem(eqItem); }}
                                     disabled={verifyingItemId === eqItem.equipmentId}
                                   >
@@ -488,7 +471,6 @@ export default function AdminDashboard() {
                   <div key={soldier.soldierId}>
                     <div
                       className="soldier-row"
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
                       onClick={() => toggleSoldierExpand(soldier.soldierId)}
                       role="button"
                       tabIndex={0}
@@ -534,39 +516,26 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {expandedSoldier === soldier.soldierId && (
-                      <div className="expand-panel" style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--surface-alt, #f8f9fa)', borderRadius: '0 0 8px 8px', marginBottom: 'var(--space-sm)' }}>
+                      <div className="expand-panel expand-panel--soldier">
                         {soldierItemsLoading ? (
-                          <div style={{ textAlign: 'center', padding: 'var(--space-sm)' }}>
+                          <div className="expand-panel__loading">
                             <div className="spinner" style={{ display: 'inline-block' }} /> טוען...
                           </div>
                         ) : soldierItems.length === 0 ? (
-                          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>אין פריטים</p>
+                          <p className="expand-panel__empty">אין פריטים</p>
                         ) : (
                           soldierItems.map((item) => (
-                            <div
-                              key={item.equipmentId}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: 'var(--space-xs) 0',
-                                borderBottom: '1px solid var(--border, #eee)',
-                                fontSize: 'var(--font-size-sm)',
-                              }}
-                            >
-                              <div>
-                                <span style={{ fontWeight: 500 }}>{item.type}</span>
-                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
-                                  #{item.serialNumber}
-                                </span>
+                            <div key={item.equipmentId} className={`expand-panel__row ${item.verified ? 'expand-panel__row--verified' : ''}`}>
+                              <div className="expand-panel__info">
+                                <div className="expand-panel__type">{item.type}</div>
+                                <div className="expand-panel__serial">{item.serialNumber}</div>
                               </div>
-                              <div>
+                              <div className="expand-panel__action">
                                 {item.verified ? (
-                                  <span className="status-badge status-badge--verified" style={{ fontSize: 'var(--font-size-xs)' }}>✅ אומת</span>
+                                  <span className="status-badge status-badge--verified">✅ אומת</span>
                                 ) : (
                                   <button
                                     className="btn btn--primary btn--small"
-                                    style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px' }}
                                     onClick={(e) => { e.stopPropagation(); handleApproveSoldierItem(soldier.soldierId, item); }}
                                     disabled={verifyingItemId === item.equipmentId}
                                   >

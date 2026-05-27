@@ -1,8 +1,9 @@
 /**
- * Format a date to YYYY-MM-DD string for consistent date grouping
+ * Format a date to YYYY-MM-DD string in Asia/Jerusalem timezone for consistent date grouping
  */
 export function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const parts = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+  return parts;
 }
 
 /**
