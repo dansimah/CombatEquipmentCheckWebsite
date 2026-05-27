@@ -1248,7 +1248,6 @@ body::before {
 .equipment-summary-item:hover {
   background: var(--bg-card-hover);
 }
-}
 
 .equipment-summary-item__name {
   font-weight: 500;
