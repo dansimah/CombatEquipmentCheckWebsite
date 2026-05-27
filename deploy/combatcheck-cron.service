@@ -10,7 +10,7 @@ Group=combatcheck
 WorkingDirectory=/opt/combatcheck
 EnvironmentFile=/opt/combatcheck/.env
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/npx tsx scripts/cron.ts
+ExecStart=/usr/bin/npx tsx --tsconfig tsconfig.cron.json scripts/cron.ts
 Restart=on-failure
 RestartSec=10
 

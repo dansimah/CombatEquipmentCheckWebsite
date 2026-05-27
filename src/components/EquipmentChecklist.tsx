@@ -6,6 +6,7 @@ interface EquipmentItem {
   id: string;
   type: string;
   serialNumber: string;
+  verifiedToday?: boolean;
 }
 
 interface EquipmentChecklistProps {
@@ -40,10 +41,9 @@ export default function EquipmentChecklist({
       })
       .then((data: EquipmentItem[]) => {
         setEquipment(data);
-        // Initialize all as unchecked
         const initial: Record<string, boolean> = {};
         data.forEach((item: EquipmentItem) => {
-          initial[item.id] = false;
+          initial[item.id] = item.verifiedToday ?? false;
         });
         setVerified(initial);
         setLoading(false);

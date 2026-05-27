@@ -140,6 +140,25 @@ export default function AdminInventory() {
     setDrilldownItems([]);
   };
 
+  // Push browser history entry when entering drill-down, handle back button
+  useEffect(() => {
+    if (drilldownType) {
+      window.history.pushState({ adminSubview: 'drilldown' }, '');
+    }
+  }, [drilldownType]);
+
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      if (drilldownType) {
+        e.preventDefault();
+        setDrilldownType(null);
+        setDrilldownItems([]);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [drilldownType]);
+
   const allTypesWithCounts = (() => {
     const seen = new Set<string>();
     const result: SummaryItem[] = [];

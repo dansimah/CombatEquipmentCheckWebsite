@@ -34,6 +34,23 @@ interface StatusData {
   };
 }
 
+interface SoldierEquipmentItem {
+  equipmentId: string;
+  type: string;
+  serialNumber: string;
+  verified: boolean;
+}
+
+interface InventoryDrilldownItem {
+  equipmentId: string;
+  serialNumber: string;
+  soldierId: string;
+  soldierName: string;
+  teamId: string;
+  teamName: string;
+  verified: boolean;
+}
+
 export default function AdminDashboard() {
   const [date, setDate] = useState(getToday());
   const [data, setData] = useState<StatusData | null>(null);
@@ -47,6 +64,17 @@ export default function AdminDashboard() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+
+  // Expandable soldier rows
+  const [expandedSoldier, setExpandedSoldier] = useState<string | null>(null);
+  const [soldierItems, setSoldierItems] = useState<SoldierEquipmentItem[]>([]);
+  const [soldierItemsLoading, setSoldierItemsLoading] = useState(false);
+  const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
+
+  // Expandable equipment summary
+  const [expandedEquipType, setExpandedEquipType] = useState<string | null>(null);
+  const [equipDrilldownItems, setEquipDrilldownItems] = useState<InventoryDrilldownItem[]>([]);
+  const [equipDrilldownLoading, setEquipDrilldownLoading] = useState(false);
 
   const fetchStatus = useCallback(async (selectedDate: string, background = false) => {
     if (!background) setLoading(true);
@@ -121,6 +149,103 @@ export default function AdminDashboard() {
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMessage(null), 8000);
+    }
+  };
+
+  // Toggle soldier expansion to show per-item details
+  const toggleSoldierExpand = async (soldierId: string) => {
+    if (expandedSoldier === soldierId) {
+      setExpandedSoldier(null);
+      setSoldierItems([]);
+      return;
+    }
+    setExpandedSoldier(soldierId);
+    setSoldierItemsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/soldiers/${soldierId}/status?date=${date}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setSoldierItems(data.items);
+    } catch {
+      setSoldierItems([]);
+    } finally {
+      setSoldierItemsLoading(false);
+    }
+  };
+
+  // Toggle equipment type expansion in summary
+  const toggleEquipTypeExpand = async (type: string) => {
+    if (expandedEquipType === type) {
+      setExpandedEquipType(null);
+      setEquipDrilldownItems([]);
+      return;
+    }
+    setExpandedEquipType(type);
+    setEquipDrilldownLoading(true);
+    try {
+      const params = new URLSearchParams({ type, date });
+      if (summaryTeam) params.set('teamId', summaryTeam);
+      const res = await fetch(`/api/admin/inventory?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setEquipDrilldownItems(data.items);
+    } catch {
+      setEquipDrilldownItems([]);
+    } finally {
+      setEquipDrilldownLoading(false);
+    }
+  };
+
+  // Approve a single item from soldier expansion
+  const handleApproveSoldierItem = async (soldierId: string, item: SoldierEquipmentItem) => {
+    setVerifyingItemId(item.equipmentId);
+    try {
+      const res = await fetch('/api/admin/inventory/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          soldierId,
+          equipmentId: item.equipmentId,
+          equipmentType: item.type,
+          serialNumber: item.serialNumber,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to verify');
+      setSoldierItems((prev) =>
+        prev.map((i) => i.equipmentId === item.equipmentId ? { ...i, verified: true } : i)
+      );
+      fetchStatus(date, true);
+    } catch {
+      // silent fail
+    } finally {
+      setVerifyingItemId(null);
+    }
+  };
+
+  // Approve a single item from equipment type drilldown
+  const handleApproveEquipItem = async (item: InventoryDrilldownItem) => {
+    if (!expandedEquipType) return;
+    setVerifyingItemId(item.equipmentId);
+    try {
+      const res = await fetch('/api/admin/inventory/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          soldierId: item.soldierId,
+          equipmentId: item.equipmentId,
+          equipmentType: expandedEquipType,
+          serialNumber: item.serialNumber,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to verify');
+      setEquipDrilldownItems((prev) =>
+        prev.map((i) => i.equipmentId === item.equipmentId ? { ...i, verified: true } : i)
+      );
+      fetchStatus(date, true);
+    } catch {
+      // silent fail
+    } finally {
+      setVerifyingItemId(null);
     }
   };
 
@@ -257,15 +382,80 @@ export default function AdminDashboard() {
                 <p style={{ color: 'var(--text-muted)' }}>לא נמצא ציוד.</p>
               ) : (
                 summaryData.map((item) => (
-                  <div key={item.type} className="equipment-summary-item">
-                    <div className="equipment-summary-item__name">{item.type}</div>
-                    <div className="equipment-summary-item__count">
-                      <span className={item.verified === item.total ? 'text-success' : item.verified > 0 ? 'text-warning' : 'text-danger'}>
-                        {item.verified}
-                      </span>
-                      {' '}מתוך{' '}
-                      {item.total}
+                  <div key={item.type}>
+                    <div
+                      className="equipment-summary-item"
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => toggleEquipTypeExpand(item.type)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleEquipTypeExpand(item.type);
+                        }
+                      }}
+                    >
+                      <div className="equipment-summary-item__name">
+                        {expandedEquipType === item.type ? '▼' : '◀'} {item.type}
+                      </div>
+                      <div className="equipment-summary-item__count">
+                        <span className={item.verified === item.total ? 'text-success' : item.verified > 0 ? 'text-warning' : 'text-danger'}>
+                          {item.verified}
+                        </span>
+                        {' '}מתוך{' '}
+                        {item.total}
+                      </div>
                     </div>
+                    {expandedEquipType === item.type && (
+                      <div className="expand-panel" style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--surface-alt, #f8f9fa)', borderRadius: '0 0 8px 8px', marginTop: '-4px', marginBottom: 'var(--space-sm)' }}>
+                        {equipDrilldownLoading ? (
+                          <div style={{ textAlign: 'center', padding: 'var(--space-sm)' }}>
+                            <div className="spinner" style={{ display: 'inline-block' }} /> טוען...
+                          </div>
+                        ) : equipDrilldownItems.length === 0 ? (
+                          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>לא נמצאו פריטים</p>
+                        ) : (
+                          equipDrilldownItems.map((eqItem) => (
+                            <div
+                              key={eqItem.equipmentId}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: 'var(--space-xs) 0',
+                                borderBottom: '1px solid var(--border, #eee)',
+                                fontSize: 'var(--font-size-sm)',
+                              }}
+                            >
+                              <div>
+                                <span style={{ fontWeight: 500 }}>{eqItem.soldierName}</span>
+                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
+                                  {eqItem.teamName}
+                                </span>
+                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
+                                  #{eqItem.serialNumber}
+                                </span>
+                              </div>
+                              <div>
+                                {eqItem.verified ? (
+                                  <span className="status-badge status-badge--verified" style={{ fontSize: 'var(--font-size-xs)' }}>✅ אומת</span>
+                                ) : (
+                                  <button
+                                    className="btn btn--primary btn--small"
+                                    style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px' }}
+                                    onClick={(e) => { e.stopPropagation(); handleApproveEquipItem(eqItem); }}
+                                    disabled={verifyingItemId === eqItem.equipmentId}
+                                  >
+                                    {verifyingItemId === eqItem.equipmentId ? '...' : '✓ אשר'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -295,38 +485,100 @@ export default function AdminDashboard() {
               </div>
               <div className="team-section__body">
                 {team.soldiers.map((soldier) => (
-                  <div key={soldier.soldierId} className="soldier-row">
-                    <div>
-                      <div className="soldier-row__name">{soldier.soldierName}</div>
-                      <div className="soldier-row__meta">
-                        {soldier.equipmentCount} פריטים
+                  <div key={soldier.soldierId}>
+                    <div
+                      className="soldier-row"
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => toggleSoldierExpand(soldier.soldierId)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleSoldierExpand(soldier.soldierId);
+                        }
+                      }}
+                    >
+                      <div>
+                        <div className="soldier-row__name">
+                          {expandedSoldier === soldier.soldierId ? '▼' : '◀'} {soldier.soldierName}
+                        </div>
+                        <div className="soldier-row__meta">
+                          {soldier.equipmentCount} פריטים
+                        </div>
+                      </div>
+                      <div className="soldier-row__status">
+                        {soldier.verificationStatus === 'full' ? (
+                          <>
+                            <span className="status-badge status-badge--verified">
+                              ✅ אומת
+                            </span>
+                            {soldier.verificationTime && (
+                              <span className="verification-time">
+                                {formatTimestamp(soldier.verificationTime)}
+                              </span>
+                            )}
+                          </>
+                        ) : soldier.verificationStatus === 'partial' ? (
+                          <span
+                            className="status-badge status-badge--partial"
+                            title={`חסר: ${soldier.missingItems.join(', ')}`}
+                          >
+                            ⚠️ חלקי ({soldier.verifiedItemCount}/{soldier.equipmentCount})
+                          </span>
+                        ) : (
+                          <span className="status-badge status-badge--pending">
+                            ❌ ממתין
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="soldier-row__status">
-                      {soldier.verificationStatus === 'full' ? (
-                        <>
-                          <span className="status-badge status-badge--verified">
-                            ✅ אומת
-                          </span>
-                          {soldier.verificationTime && (
-                            <span className="verification-time">
-                              {formatTimestamp(soldier.verificationTime)}
-                            </span>
-                          )}
-                        </>
-                      ) : soldier.verificationStatus === 'partial' ? (
-                        <span
-                          className="status-badge status-badge--partial"
-                          title={`חסר: ${soldier.missingItems.join(', ')}`}
-                        >
-                          ⚠️ חלקי ({soldier.verifiedItemCount}/{soldier.equipmentCount})
-                        </span>
-                      ) : (
-                        <span className="status-badge status-badge--pending">
-                          ❌ ממתין
-                        </span>
-                      )}
-                    </div>
+                    {expandedSoldier === soldier.soldierId && (
+                      <div className="expand-panel" style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--surface-alt, #f8f9fa)', borderRadius: '0 0 8px 8px', marginBottom: 'var(--space-sm)' }}>
+                        {soldierItemsLoading ? (
+                          <div style={{ textAlign: 'center', padding: 'var(--space-sm)' }}>
+                            <div className="spinner" style={{ display: 'inline-block' }} /> טוען...
+                          </div>
+                        ) : soldierItems.length === 0 ? (
+                          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>אין פריטים</p>
+                        ) : (
+                          soldierItems.map((item) => (
+                            <div
+                              key={item.equipmentId}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: 'var(--space-xs) 0',
+                                borderBottom: '1px solid var(--border, #eee)',
+                                fontSize: 'var(--font-size-sm)',
+                              }}
+                            >
+                              <div>
+                                <span style={{ fontWeight: 500 }}>{item.type}</span>
+                                <span style={{ color: 'var(--text-muted)', marginInlineStart: 'var(--space-sm)' }}>
+                                  #{item.serialNumber}
+                                </span>
+                              </div>
+                              <div>
+                                {item.verified ? (
+                                  <span className="status-badge status-badge--verified" style={{ fontSize: 'var(--font-size-xs)' }}>✅ אומת</span>
+                                ) : (
+                                  <button
+                                    className="btn btn--primary btn--small"
+                                    style={{ fontSize: 'var(--font-size-xs)', padding: '2px 8px' }}
+                                    onClick={(e) => { e.stopPropagation(); handleApproveSoldierItem(soldier.soldierId, item); }}
+                                    disabled={verifyingItemId === item.equipmentId}
+                                  >
+                                    {verifyingItemId === item.equipmentId ? '...' : '✓ אשר'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

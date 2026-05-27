@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { formatDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
+
+interface VerificationItemData {
+  equipmentType: string;
+  serialNumber: string;
+  verified: boolean;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +32,29 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(equipment);
+    // Fetch today's latest verification to return current item states
+    const today = formatDate(new Date());
+    const latestVerification = await prisma.verification.findFirst({
+      where: { soldierId, date: today },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    const verifiedSet = new Set<string>();
+    if (latestVerification) {
+      const items = (latestVerification.items as unknown as VerificationItemData[]) || [];
+      for (const item of items) {
+        if (item.verified) {
+          verifiedSet.add(`${item.equipmentType}:${item.serialNumber}`);
+        }
+      }
+    }
+
+    const result = equipment.map((eq) => ({
+      ...eq,
+      verifiedToday: verifiedSet.has(`${eq.type}:${eq.serialNumber}`),
+    }));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching equipment:', error);
     return NextResponse.json(

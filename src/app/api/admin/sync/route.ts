@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
+        timeZone: 'Asia/Jerusalem',
       });
       await sendSyncChangeLogToTelegram(result.changes, `ידני ${now}`);
     }
