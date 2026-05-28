@@ -12,9 +12,19 @@ import {
   isTelegramConfigured,
   sendDailyStatusToTelegram,
   sendSyncChangeLogToTelegram,
+  sendTelegramMessage,
 } from '../src/lib/telegram';
 
 const TZ = process.env.CRON_TIMEZONE || 'Asia/Jerusalem';
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
 
 async function runNightlySync() {
   console.log(`[cron] Nightly Sheets sync started (${new Date().toISOString()})`);
@@ -23,28 +33,40 @@ async function runNightlySync() {
     console.log(`[cron] Sync done: ${result.summary} (${result.rowCount} rows)`);
 
     if (isTelegramConfigured()) {
-      if (result.hasChanges) {
-        await sendSyncChangeLogToTelegram(result.changes, '22:00');
-      } else {
-        console.log('[cron] No changes — skipping Telegram change log');
-      }
+      await sendSyncChangeLogToTelegram(result.changes, '22:00');
     }
   } catch (err) {
     console.error('[cron] Nightly sync failed:', err);
+    if (isTelegramConfigured()) {
+      try {
+        await sendTelegramMessage(
+          `⚠️ <b>סנכרון לילה (22:00) נכשל</b>\n${describeError(err)}`,
+        );
+      } catch (notifyErr) {
+        console.error('[cron] Failed to send failure notice:', notifyErr);
+      }
+    }
   }
 }
 
 async function runMorningStatus() {
   console.log(`[cron] Morning status started (${new Date().toISOString()})`);
+  if (!isTelegramConfigured()) {
+    console.warn('[cron] Telegram not configured — skipping morning status');
+    return;
+  }
   try {
-    if (!isTelegramConfigured()) {
-      console.warn('[cron] Telegram not configured — skipping morning status');
-      return;
-    }
     const ok = await sendDailyStatusToTelegram();
     console.log(`[cron] Morning status sent: ${ok}`);
   } catch (err) {
     console.error('[cron] Morning status failed:', err);
+    try {
+      await sendTelegramMessage(
+        `⚠️ <b>סטטוס בוקר (11:00) נכשל</b>\n${describeError(err)}`,
+      );
+    } catch (notifyErr) {
+      console.error('[cron] Failed to send failure notice:', notifyErr);
+    }
   }
 }
 
