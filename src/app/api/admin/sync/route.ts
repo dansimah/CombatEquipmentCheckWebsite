@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const result = await syncFromGoogleSheets('manual');
 
-    if (result.hasChanges && isTelegramConfigured()) {
+    if (isTelegramConfigured()) {
       const now = new Date().toLocaleTimeString('he-IL', {
         hour: '2-digit',
         minute: '2-digit',
