@@ -59,18 +59,18 @@ function soldierKey(team: string, name: string): string {
   return `${team}::${name}`;
 }
 
-function equipmentKey(team: string, name: string, type: string): string {
-  return `${team}::${name}::${type}`;
-}
-
-/** Group sheet rows by soldier, then by equipment type (last row wins for duplicates). */
+/**
+ * Group sheet rows by soldier, then by equipment type. Multiple rows of the
+ * same type for the same soldier are preserved as a list of serials so that a
+ * soldier can legitimately carry two of the same item (e.g. two magazines).
+ */
 function buildSheetMap(rows: CsvEquipmentRow[]): Map<
   string,
-  { team: string; name: string; equipment: Map<string, string> }
+  { team: string; name: string; equipment: Map<string, string[]> }
 > {
   const map = new Map<
     string,
-    { team: string; name: string; equipment: Map<string, string> }
+    { team: string; name: string; equipment: Map<string, string[]> }
   >();
 
   for (const row of rows) {
@@ -80,7 +80,13 @@ function buildSheetMap(rows: CsvEquipmentRow[]): Map<
       entry = { team: row.team, name: row.name, equipment: new Map() };
       map.set(key, entry);
     }
-    entry.equipment.set(row.type, normalizeCsvSerial(row.serial));
+    const serial = normalizeCsvSerial(row.serial);
+    const serials = entry.equipment.get(row.type);
+    if (serials) {
+      serials.push(serial);
+    } else {
+      entry.equipment.set(row.type, [serial]);
+    }
   }
 
   return map;
@@ -132,13 +138,14 @@ export async function syncFromGoogleSheets(
     },
   });
 
-  const dbEquipmentByKey = new Map<
-    string,
-    { id: string; serial: string; soldierId: string; team: string; name: string; type: string }
-  >();
   const dbSoldiersByKey = new Map<
     string,
-    { id: string; team: string; name: string; equipment: { id: string; type: string; serialNumber: string }[] }
+    {
+      id: string;
+      team: string;
+      name: string;
+      equipment: { id: string; type: string; serialNumber: string }[];
+    }
   >();
 
   for (const team of dbTeams) {
@@ -154,16 +161,6 @@ export async function syncFromGoogleSheets(
           serialNumber: e.serialNumber,
         })),
       });
-      for (const eq of soldier.equipment) {
-        dbEquipmentByKey.set(equipmentKey(team.name, soldier.name, eq.type), {
-          id: eq.id,
-          serial: eq.serialNumber,
-          soldierId: soldier.id,
-          team: team.name,
-          name: soldier.name,
-          type: eq.type,
-        });
-      }
     }
   }
 
@@ -180,12 +177,12 @@ export async function syncFromGoogleSheets(
     teamCache.set(team.name, team.id);
   }
 
-  // Apply additions and updates from sheet
   for (const [sKey, sheetSoldier] of sheetMap) {
-    const dbSoldier = dbSoldiersByKey.get(sKey);
-    let soldierId = dbSoldier?.id;
+    let dbSoldier = dbSoldiersByKey.get(sKey);
+    const isNewSoldier = !dbSoldier;
+    let soldierId: string;
 
-    if (!soldierId) {
+    if (!dbSoldier) {
       let teamId = teamCache.get(sheetSoldier.team);
       if (!teamId) {
         const team = await db.team.create({
@@ -195,33 +192,99 @@ export async function syncFromGoogleSheets(
         teamCache.set(sheetSoldier.team, teamId);
       }
 
-      const soldier = await db.soldier.create({
+      const created = await db.soldier.create({
         data: { name: sheetSoldier.name, teamId },
       });
-      soldierId = soldier.id;
-      dbSoldiersByKey.set(sKey, {
+      soldierId = created.id;
+      dbSoldier = {
         id: soldierId,
         team: sheetSoldier.team,
         name: sheetSoldier.name,
         equipment: [],
-      });
+      };
+      dbSoldiersByKey.set(sKey, dbSoldier);
 
       changes.addedSoldiers.push({
         name: sheetSoldier.name,
         team: sheetSoldier.team,
         equipmentTypes: [...sheetSoldier.equipment.keys()],
       });
+    } else {
+      soldierId = dbSoldier.id;
     }
 
-    for (const [type, serial] of sheetSoldier.equipment) {
-      const eKey = equipmentKey(sheetSoldier.team, sheetSoldier.name, type);
-      const existing = dbEquipmentByKey.get(eKey);
+    // Bucket the soldier's DB equipment by type so we can do a multiset diff
+    // per (soldier, type). This is what lets a soldier carry more than one
+    // item of the same type (e.g. two magazines) without the sync collapsing
+    // them down to one.
+    const dbByType = new Map<string, { id: string; serial: string }[]>();
+    for (const eq of dbSoldier.equipment) {
+      const list = dbByType.get(eq.type);
+      const entry = { id: eq.id, serial: eq.serialNumber };
+      if (list) {
+        list.push(entry);
+      } else {
+        dbByType.set(eq.type, [entry]);
+      }
+    }
 
-      if (!existing) {
+    const allTypes = new Set<string>([
+      ...sheetSoldier.equipment.keys(),
+      ...dbByType.keys(),
+    ]);
+
+    for (const type of allTypes) {
+      const sheetSerials = [...(sheetSoldier.equipment.get(type) ?? [])];
+      const dbItems = [...(dbByType.get(type) ?? [])];
+
+      // Pair sheet serials against DB items with the same serial — these are
+      // already in sync and need no work.
+      const usedDb = new Set<number>();
+      const unmatchedSheet: string[] = [];
+      for (const serial of sheetSerials) {
+        let foundIdx = -1;
+        for (let i = 0; i < dbItems.length; i++) {
+          if (usedDb.has(i)) continue;
+          if (dbItems[i].serial === serial) {
+            foundIdx = i;
+            break;
+          }
+        }
+        if (foundIdx >= 0) {
+          usedDb.add(foundIdx);
+        } else {
+          unmatchedSheet.push(serial);
+        }
+      }
+      const remainingDb: { id: string; serial: string }[] = [];
+      for (let i = 0; i < dbItems.length; i++) {
+        if (!usedDb.has(i)) remainingDb.push(dbItems[i]);
+      }
+
+      // Pair leftovers as in-place modifications — preserves the existing
+      // "type X serial changed from A to B" change-log entries for the common
+      // single-item case while still doing the right thing when counts differ.
+      while (unmatchedSheet.length > 0 && remainingDb.length > 0) {
+        const newSerial = unmatchedSheet.shift()!;
+        const dbItem = remainingDb.shift()!;
+        await db.equipment.update({
+          where: { id: dbItem.id },
+          data: { serialNumber: newSerial },
+        });
+        changes.modifiedEquipment.push({
+          name: sheetSoldier.name,
+          team: sheetSoldier.team,
+          type,
+          oldSerial: dbItem.serial,
+          newSerial,
+        });
+      }
+
+      for (const serial of unmatchedSheet) {
         await db.equipment.create({
           data: { type, serialNumber: serial, soldierId },
         });
-        if (!changes.addedSoldiers.some((s) => s.name === sheetSoldier.name && s.team === sheetSoldier.team)) {
+        if (!isNewSoldier) {
           changes.addedEquipment.push({
             name: sheetSoldier.name,
             team: sheetSoldier.team,
@@ -229,39 +292,21 @@ export async function syncFromGoogleSheets(
             serial,
           });
         }
-        continue;
       }
 
-      if (existing.serial !== serial) {
-        await db.equipment.update({
-          where: { id: existing.id },
-          data: { serialNumber: serial },
-        });
-        changes.modifiedEquipment.push({
+      for (const dbItem of remainingDb) {
+        await db.equipment.delete({ where: { id: dbItem.id } });
+        changes.removedEquipment.push({
           name: sheetSoldier.name,
           team: sheetSoldier.team,
           type,
-          oldSerial: existing.serial,
-          newSerial: serial,
         });
       }
     }
   }
 
-  // Remove equipment not in sheet
-  for (const [eKey, dbEq] of dbEquipmentByKey) {
-    const sheetSoldier = sheetMap.get(soldierKey(dbEq.team, dbEq.name));
-    if (!sheetSoldier || !sheetSoldier.equipment.has(dbEq.type)) {
-      await db.equipment.delete({ where: { id: dbEq.id } });
-      changes.removedEquipment.push({
-        name: dbEq.name,
-        team: dbEq.team,
-        type: dbEq.type,
-      });
-    }
-  }
-
-  // Remove soldiers not in sheet
+  // Soldiers no longer in the sheet are deleted; cascade removes their
+  // equipment, so we don't need to enumerate it as individual removals.
   for (const [sKey, dbSoldier] of dbSoldiersByKey) {
     if (!sheetMap.has(sKey)) {
       await db.soldier.delete({ where: { id: dbSoldier.id } });

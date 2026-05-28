@@ -40,7 +40,7 @@ cp -a .next/standalone/. "${STAGE}/"
 [[ -d public ]] && cp -a public "${STAGE}/public"
 mkdir -p "${STAGE}/.next"
 cp -a .next/static "${STAGE}/.next/static"
-cp -r prisma package.json package-lock.json prisma.config.ts scripts src "${STAGE}/"
+cp -r prisma package.json package-lock.json prisma.config.ts scripts src tsconfig.json tsconfig.cron.json "${STAGE}/"
 [[ -d data ]] && cp -r data "${STAGE}/"
 
 [[ -f "${APP_DIR}/.env" ]] && cp "${APP_DIR}/.env" "${STAGE}/.env"
