@@ -4,6 +4,12 @@ import { getToday } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
+interface VerificationItemData {
+  equipmentType: string;
+  serialNumber: string;
+  verified: boolean;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -26,17 +32,39 @@ export async function GET(request: NextRequest) {
         name: true,
         verifications: {
           where: { date: today },
-          select: { id: true },
+          orderBy: { timestamp: 'desc' },
+          select: { items: true },
           take: 1,
+        },
+        _count: {
+          select: { equipment: true },
         },
       },
     });
 
-    const result = soldiers.map((s) => ({
-      id: s.id,
-      name: s.name,
-      verifiedToday: s.verifications.length > 0,
-    }));
+    const result = soldiers.map((s) => {
+      const lastVerification = s.verifications[0] || null;
+      const totalEquipment = s._count.equipment;
+
+      let verificationStatus: 'full' | 'partial' | 'none' = 'none';
+      if (lastVerification) {
+        const items =
+          (lastVerification.items as unknown as VerificationItemData[]) || [];
+        const verifiedItemCount = items.filter((i) => i.verified).length;
+        if (verifiedItemCount >= totalEquipment && verifiedItemCount > 0) {
+          verificationStatus = 'full';
+        } else if (verifiedItemCount > 0) {
+          verificationStatus = 'partial';
+        }
+      }
+
+      return {
+        id: s.id,
+        name: s.name,
+        verificationStatus,
+        verifiedToday: verificationStatus === 'full',
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {

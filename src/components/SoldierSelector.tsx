@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 interface Soldier {
   id: string;
   name: string;
+  verificationStatus?: 'full' | 'partial' | 'none';
   verifiedToday?: boolean;
 }
 
@@ -73,11 +74,17 @@ export default function SoldierSelector({ team, onSelect }: SoldierSelectorProps
           <option value="" disabled>
             — בחר חייל —
           </option>
-          {soldiers.map((soldier) => (
-            <option key={soldier.id} value={soldier.id}>
-              {soldier.verifiedToday ? '✔ ' : ''}{soldier.name}
-            </option>
-          ))}
+          {soldiers.map((soldier) => {
+            const status = soldier.verificationStatus
+              ?? (soldier.verifiedToday ? 'full' : 'none');
+            const prefix =
+              status === 'full' ? '✔ ' : status === 'partial' ? '✔✗ ' : '';
+            return (
+              <option key={soldier.id} value={soldier.id}>
+                {prefix}{soldier.name}
+              </option>
+            );
+          })}
         </select>
       </div>
     </div>
